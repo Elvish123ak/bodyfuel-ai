@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>BodyFuel AI – Camera + AI Health App</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Config file with API key (will be excluded from git) -->
+<script src="config.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --green: #2E7D32; --green-soft: #E8F5E9; --orange: #FF9800;
+    --orange-soft: #FFF3E0; --blue: #2196F3; --blue-soft: #E3F2FD;
+    --bg: #F5F5F5; --white: #ffffff; --grey: #EEEEEE;
+    --text: #1A1A2E; --muted: #757575;
+    --card-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    --radius: 20px; --radius-sm: 12px;
+  }
+  body { font-family: 'Baloo 2', sans-serif; background: var(--bg); }
+  .phone-wrapper { display: flex; justify-content: center; padding: 20px; background: linear-gradient(135deg, #1B5E20, #0D47A1); }
+  .phone-frame { width: 390px; min-height: 780px; background: var(--bg); border-radius: 44px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.5); position: relative; }
+  .bottom-nav { position: sticky; bottom: 0; background: var(--white); display: flex; justify-content: space-around; padding: 10px 0 20px; border-top: 1px solid var(--grey); }
+  .nav-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 6px 16px; border-radius: 12px; font-size: 11px; color: var(--muted); background: none; border: none; }
+  .nav-item.active { color: var(--green); }
+  .page { display: none; animation: fadeSlide 0.3s ease; }
+  .page.active { display: block; }
+  @keyframes fadeSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .status-bar { background: var(--white); padding: 12px 24px 8px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; }
+  .home-header { background: linear-gradient(135deg, var(--green), #1B5E20); padding: 20px 24px 28px; color: white; }
+  .app-logo { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .logo-icon { width: 38px; height: 38px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .logo-text { font-size: 18px; font-weight: 800; }
+  .header-greeting { font-size: 22px; font-weight: 800; line-height: 1.3; }
+  .ai-badge { font-size: 10px; opacity: 0.8; margin-top: 8px; display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 20px; }
+  .stats-strip { display: flex; gap: 10px; padding: 16px 20px; overflow-x: auto; }
+  .stat-chip { background: var(--white); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; box-shadow: var(--card-shadow); }
+  .stat-val { font-size: 16px; font-weight: 800; color: var(--green); }
+  .main-cards { display: flex; flex-direction: column; gap: 14px; padding: 0 20px; }
+  .main-card { border-radius: var(--radius); padding: 20px; cursor: pointer; position: relative; overflow: hidden; transition: transform 0.2s; }
+  .main-card:active { transform: scale(0.98); }
+  .card-body { background: linear-gradient(135deg, var(--green), #388E3C); }
+  .card-food { background: linear-gradient(135deg, var(--orange), #F57C00); }
+  .card-deco { position: absolute; right: -10px; top: -10px; font-size: 70px; opacity: 0.15; }
+  .card-tag { background: rgba(255,255,255,0.2); color: white; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; width: fit-content; }
+  .card-title { font-size: 18px; font-weight: 800; color: white; }
+  .card-desc { font-size: 12px; color: rgba(255,255,255,0.85); margin-top: 8px; }
+  .card-btn { background: rgba(255,255,255,0.95); border: none; border-radius: 14px; padding: 8px 16px; font-weight: 800; margin-top: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .recent-section { padding: 16px 20px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .section-title { font-size: 16px; font-weight: 800; }
+  .view-all { color: var(--blue); background: none; border: none; font-weight: 600; cursor: pointer; font-size: 12px; }
+  .activity-item { display: flex; align-items: center; gap: 12px; background: var(--white); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; box-shadow: var(--card-shadow); }
+  .activity-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .icon-food { background: var(--orange-soft); }
+  .icon-body { background: var(--green-soft); }
+  .activity-info { flex: 1; }
+  .activity-title { font-size: 13px; font-weight: 700; }
+  .activity-time { font-size: 11px; color: var(--muted); }
+  .activity-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+  .badge-kcal { background: var(--orange-soft); color: var(--orange); }
+  .badge-exercise { background: var(--green-soft); color: var(--green); }
+  .privacy-note { margin: 0 20px 20px; background: var(--blue-soft); border-radius: var(--radius-sm); padding: 10px; font-size: 11px; color: #1565C0; display: flex; align-items: center; gap: 6px; }
+  .analysis-header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; background: var(--white); border-bottom: 1px solid var(--grey); }
+  .back-btn { width: 36px; height: 36px; background: var(--grey); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; font-size: 18px; }
+  .tab-switcher { display: flex; margin: 16px 20px; background: var(--grey); border-radius: 14px; padding: 4px; gap: 4px; }
+  .tab-btn { flex: 1; padding: 8px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; background: transparent; color: var(--muted); }
+  .tab-btn.active { background: var(--white); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .result-panel { display: none; }
+  .result-panel.active { display: block; }
+  
+  /* Camera Styles */
+  .camera-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: black;
+    z-index: 2000;
+    display: none;
+    flex-direction: column;
+  }
+  .camera-video {
+    width: 100%;
+    height: 70%;
+    object-fit: cover;
+  }
+  .camera-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px;
+  }
+  .cam-capture-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid var(--orange);
+    cursor: pointer;
+  }
+  .cam-close-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: red;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+  }
+  .cam-switch-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+  }
+  
+  .upload-area { margin: 0 20px 16px; border: 2px dashed #BDBDBD; border-radius: var(--radius); padding: 40px 20px; text-align: center; cursor: pointer; background: var(--white); transition: all 0.2s; }
+  .upload-area:hover { border-color: var(--green); background: var(--green-soft); }
+  .upload-icon { font-size: 48px; margin-bottom: 8px; }
+  .analyzing-bar { margin: 0 20px 16px; background: var(--green-soft); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: var(--green); }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--green-soft); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .score-card, .food-detected, .issues-card, .exercises-card, .nutrition-grid, .balance-note, .action-buttons { margin: 0 20px 16px; }
+  .score-card { background: linear-gradient(135deg, var(--green), #1B5E20); border-radius: var(--radius); padding: 20px; color: white; display: flex; align-items: center; gap: 16px; }
+  .score-circle { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .score-num { font-size: 22px; font-weight: 800; }
+  .issues-card, .exercises-card { background: var(--white); border-radius: var(--radius-sm); padding: 16px; box-shadow: var(--card-shadow); }
+  .issues-title { color: #E65100; font-weight: 800; margin-bottom: 12px; }
+  .exercises-title { color: var(--green); font-weight: 800; margin-bottom: 12px; }
+  .exercise-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--grey); }
+  .ex-num { width: 28px; height: 28px; background: var(--green-soft); color: var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+  .food-detected { background: linear-gradient(135deg, var(--orange), #E65100); border-radius: var(--radius); padding: 16px 20px; color: white; display: flex; align-items: center; gap: 12px; }
+  .nutrition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .nutri-card { background: var(--white); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+  .kcal-big { font-size: 28px; font-weight: 800; color: var(--orange); }
+  .balance-note { background: #FFF8E1; border-radius: var(--radius-sm); padding: 14px; border-left: 4px solid var(--orange); font-size: 12px; }
+  .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .action-btn { flex: 1; padding: 10px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; }
+  .btn-save { background: var(--green-soft); color: var(--green); }
+  .btn-new { background: var(--grey); color: var(--text); }
+  .btn-pdf { background: #FFEBEE; color: #C62828; }
+  .history-header { background: linear-gradient(135deg, #1565C0, #0D47A1); padding: 20px 24px 24px; color: white; }
+  .history-title { font-size: 20px; font-weight: 800; }
+  .tab-strip { display: flex; margin: 0 20px; margin-top: -14px; background: var(--white); border-radius: 14px; padding: 4px; box-shadow: var(--card-shadow); }
+  .htab { flex: 1; padding: 8px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; background: transparent; color: var(--muted); }
+  .htab.active { background: var(--blue); color: white; }
+  .htab-content { display: none; }
+  .htab-content.active { display: block; }
+  .history-content { padding: 16px 20px; }
+  .history-item { background: var(--white); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; box-shadow: var(--card-shadow); }
+  .hi-info { flex: 1; }
+  .hi-title { font-size: 13px; font-weight: 700; }
+  .hi-meta { font-size: 11px; color: var(--muted); }
+  .hi-actions { display: flex; gap: 6px; }
+  .hi-btn { width: 30px; height: 30px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; }
+  .hi-del { background: #FFEBEE; }
+  .hi-pdf { background: var(--blue-soft); }
+  .data-mgmt { display: flex; gap: 8px; padding: 0 20px 16px; }
+  .data-btn { flex: 1; padding: 10px; border-radius: 12px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .btn-danger { background: #FFEBEE; color: #C62828; }
+  .page-scroll { overflow-y: auto; max-height: calc(844px - 80px); scrollbar-width: none; }
+  .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--text); color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; z-index: 1000; animation: fadeOut 2s forwards; }
+  @keyframes fadeOut { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+  input[type="file"] { display: none; }
+  .progress-card { background: var(--white); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .graph-bars { display: flex; align-items: flex-end; gap: 8px; height: 80px; }
+  .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 100%; background: linear-gradient(180deg, var(--blue), #1565C0); border-radius: 6px 6px 0 0; min-height: 4px; }
+  .improvement-badge { margin-top: 10px; background: var(--green-soft); border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 700; color: var(--green); text-align: center; }
+  .notification-permission { background: var(--orange-soft); padding: 12px; margin: 0 20px 16px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; }
+  .enable-notif-btn { background: var(--orange); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+  .camera-btn { margin: 0 20px 16px; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; width: calc(100% - 40px); }
+</style>
+</head>
+<body>
+
+<div class="phone-wrapper">
+  <div class="phone-frame">
+
+    <div class="status-bar"><span>9:41</span><span>📶 🔋</span></div>
+
+    <!-- HOME PAGE -->
+    <div class="page active" id="page-home">
+      <div class="page-scroll">
+        <div class="home-header">
+          <div class="app-logo"><div class="logo-icon">⚡</div><div class="logo-text">BodyFuel AI</div></div>
+          <div class="header-greeting">👋 Apni sehat ki shuruaat<br>ek photo se karein</div>
+          <div class="ai-badge">🤖 Powered by OpenRouter AI • Camera + Gallery</div>
+        </div>
+
+        <div id="notif-banner" class="notification-permission" style="display:none;">
+          <span>🔔 Get daily health reminders</span>
+          <button class="enable-notif-btn" onclick="requestNotificationPermission()">Enable</button>
+        </div>
+
+        <div class="stats-strip" id="home-stats">
+          <div class="stat-chip"><span>🔥</span><div><div class="stat-val" id="total-calories">0</div><div class="stat-label">Kcal aaj</div></div></div>
+          <div class="stat-chip"><span>🧍</span><div><div class="stat-val" id="avg-posture">0</div><div class="stat-label">Posture avg</div></div></div>
+          <div class="stat-chip"><span>📸</span><div><div class="stat-val" id="total-scans">0</div><div class="stat-label">Total scans</div></div></div>
+        </div>
+
+        <div class="section-title" style="padding:0 20px 10px; font-size:13px;">⚡ Kya karna chahte hain aap?</div>
+
+        <div class="main-cards">
+          <div class="main-card card-body" onclick="openBodyScan()">
+            <div class="card-deco">🧍‍♀️</div>
+            <div class="card-tag">AI POWERED</div>
+            <div class="card-title">Body Posture Check</div>
+            <div class="card-desc">Body ki photo lein. AI batayega exercise aur posture kaise theek karein.</div>
+            <button class="card-btn">📸 Click & Analyze</button>
+          </div>
+          <div class="main-card card-food" onclick="openFoodScan()">
+            <div class="card-deco">🍛</div>
+            <div class="card-tag">INSTANT SCAN</div>
+            <div class="card-title">Food Nutrition Scanner</div>
+            <div class="card-desc">Khane ki photo click karein. Calories, protein, carbs instantly.</div>
+            <button class="card-btn">🍽️ Scan Food</button>
+          </div>
+        </div>
+
+        <div class="recent-section">
+          <div class="section-header"><div class="section-title">⏱️ Recent Scans</div><button class="view-all" onclick="showPage('page-history')">View All →</button></div>
+          <div id="recent-scans-list"><div class="analyzing-bar">Loading...</div></div>
+        </div>
+        <div class="privacy-note">🔒 AI powered by OpenRouter • Your data is safe in cloud</div>
+      </div>
+    </div>
+
+    <!-- ANALYSIS PAGE -->
+    <div class="page" id="page-analysis">
+      <div class="page-scroll">
+        <div class="analysis-header">
+          <button class="back-btn" onclick="showPage('page-home')">←</button>
+          <div><div class="section-title" style="font-size:16px;">AI Analysis</div><div style="font-size:10px;">Camera • Gallery • AI Analysis</div></div>
+        </div>
+
+        <div class="tab-switcher">
+          <button class="tab-btn active" onclick="switchResult('body', this)">🧍 Body Check</button>
+          <button class="tab-btn" onclick="switchResult('food', this)">🍛 Food Scan</button>
+        </div>
+
+        <!-- Body Panel -->
+        <div class="result-panel active" id="result-body">
+          <button class="camera-btn" onclick="openCamera('body')">📷 Open Camera (Body)</button>
+          <div class="upload-area" onclick="document.getElementById('body-input').click()">
+            <div class="upload-icon">🖼️</div>
+            <div class="card-title" style="color:var(--text);">Ya Gallery se select karein</div>
+            <div class="card-desc" style="color:var(--muted);">Full body ya upper body — koi bhi chalega</div>
+          </div>
+          <input type="file" id="body-input" accept="image/*" onchange="analyzeBodyWithAI(this)">
+          <div id="body-result" style="display:none;"></div>
+        </div>
+
+        <!-- Food Panel -->
+        <div class="result-panel" id="result-food">
+          <button class="camera-btn" onclick="openCamera('food')">📷 Open Camera (Food)</button>
+          <div class="upload-area" onclick="document.getElementById('food-input').click()">
+            <div class="upload-icon">🖼️</div>
+            <div class="card-title" style="color:var(--text);">Ya Gallery se select karein</div>
+            <div class="card-desc" style="color:var(--muted);">Plate, tiffin, thali — sab scan hoga</div>
+          </div>
+          <input type="file" id="food-input" accept="image/*" onchange="analyzeFoodWithAI(this)">
+          <div id="food-result" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY PAGE -->
+    <div class="page" id="page-history">
+      <div class="page-scroll">
+        <div class="history-header"><div class="history-title">📂 Your Health Journey</div><div style="font-size:11px;">Cloud sync • AI analyzed</div></div>
+        <div class="tab-strip">
+          <button class="htab active" onclick="switchHistory('body-hist', this)">🧍 Body</button>
+          <button class="htab" onclick="switchHistory('food-hist', this)">🍛 Food</button>
+          <button class="htab" onclick="switchHistory('progress-hist', this)">📊 Progress</button>
+        </div>
+        <div id="body-hist" class="htab-content active history-content"><div class="analyzing-bar">Loading...</div></div>
+        <div id="food-hist" class="htab-content history-content"><div class="analyzing-bar">Loading...</div></div>
+        <div id="progress-hist" class="htab-content history-content">
+          <div class="progress-card"><div class="section-title">📉 Posture Improvement</div><div class="graph-bars" id="posture-graph"></div><div class="improvement-badge" id="improvement-text">Loading...</div></div>
+          <div class="progress-card"><div class="section-title">🍽️ Weekly Calories</div><div class="graph-bars" id="calories-graph"></div></div>
+        </div>
+        <div class="data-mgmt">
+          <button class="data-btn btn-notify" onclick="scheduleDailyReminder()" style="background:var(--green-soft); color:var(--green);">🔔 Set Reminder</button>
+          <button class="data-btn btn-pdf" onclick="generateFullReport()">📄 Full Report</button>
+          <button class="data-btn btn-danger" onclick="clearAllData()">🗑️ Clear All</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item active" onclick="showPage('page-home', this)"><span class="nav-icon">🏠</span><span>Home</span></button>
+      <button class="nav-item" onclick="showPage('page-analysis', this)"><span class="nav-icon">📸</span><span>Scan</span></button>
+      <button class="nav-item" onclick="showPage('page-history', this)"><span class="nav-icon">📂</span><span>History</span></button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Camera Modal -->
+<div id="cameraModal" class="camera-modal">
+  <video id="cameraVideo" class="camera-video" autoplay playsinline></video>
+  <canvas id="cameraCanvas" style="display:none;"></canvas>
+  <div class="camera-controls">
+    <button class="cam-switch-btn" onclick="switchCamera()">🔄</button>
+    <button class="cam-capture-btn" onclick="capturePhoto()"></button>
+    <button class="cam-close-btn" onclick="closeCamera()">✖</button>
+  </div>
+</div>
+
+<script>
+  // ========== SUPABASE CONFIGURATION ==========
+  const SUPABASE_URL = 'https://tcadiftyubckovwczybr.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_0BoGoH1c8eQKVDz-APTwcg_uv8c3diy';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  // ========== OPENROUTER AI API KEY - From config.js ==========
+  // Make sure config.js file exists with: const OPENROUTER_KEY = 'your-key-here';
+  let OPENROUTER_KEY = typeof OPENROUTER_KEY !== 'undefined' ? window.OPENROUTER_KEY : null;
+  
+  if (!OPENROUTER_KEY) {
+    console.error('OpenRouter API key not found! Please create config.js file with OPENROUTER_KEY');
+    showToast('API Key missing! Please check config file.');
+  }
+  
+  let deviceId = localStorage.getItem('device_id');
+  if (!deviceId) {
+    deviceId = 'user_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('device_id', deviceId);
+  }
+  
+  let currentBodyData = null;
+  let currentFoodData = null;
+  let notificationPermission = false;
+  let cameraStream = null;
+  let currentCameraType = 'body';
+  let currentFacingMode = 'environment';
+  
+  // ========== CAMERA FUNCTIONS ==========
+  async function openCamera(type) {
+    currentCameraType = type;
+    currentFacingMode = 'environment';
+    
+    const modal = document.getElementById('cameraModal');
+    const video = document.getElementById('cameraVideo');
+    
+    try {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: currentFacingMode } }
+      });
+      video.srcObject = cameraStream;
+      modal.style.display = 'flex';
+    } catch(err) {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' }
+        });
+        video.srcObject = cameraStream;
+        modal.style.display = 'flex';
+      } catch(e) {
+        showToast('Camera access denied. Please allow camera permission.');
+      }
+    }
+  }
+  
+  async function switchCamera() {
+    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+    const video = document.getElementById('cameraVideo');
+    
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: currentFacingMode } }
+      });
+      video.srcObject = cameraStream;
+    } catch(err) {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: currentFacingMode === 'environment' ? 'environment' : 'user' }
+        });
+        video.srcObject = cameraStream;
+      } catch(e) {
+        showToast('Cannot switch camera');
+      }
+    }
+  }
+  
+  function capturePhoto() {
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      
+      if (currentCameraType === 'body') {
+        const input = document.getElementById('body-input');
+        input.files = dataTransfer.files;
+        await analyzeBodyWithAI(input);
+      } else {
+        const input = document.getElementById('food-input');
+        input.files = dataTransfer.files;
+        await analyzeFoodWithAI(input);
+      }
+      
+      closeCamera();
+    }, 'image/jpeg', 0.9);
+  }
+  
+  function closeCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    document.getElementById('cameraModal').style.display = 'none';
+  }
+  
+  // ========== HELPER FUNCTIONS ==========
+  function showToast(msg) {
+    let toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  }
+  
+  function showPage(pageId, navBtn) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+    if (navBtn) {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      navBtn.classList.add('active');
+    }
+    if (pageId === 'page-home') loadHomeData();
+    if (pageId === 'page-history') loadHistoryData();
+  }
+  
+  function switchResult(type, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.result-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('result-' + type).classList.add('active');
+  }
+  
+  function switchHistory(tabId, btn) {
+    document.querySelectorAll('.htab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.htab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+  }
+  
+  function openBodyScan() { showPage('page-analysis'); switchResult('body', document.querySelector('.tab-btn')); }
+  function openFoodScan() { showPage('page-analysis'); switchResult('food', document.querySelectorAll('.tab-btn')[1]); }
+  
+  // ========== NOTIFICATIONS ==========
+  async function requestNotificationPermission() {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        notificationPermission = true;
+        document.getElementById('notif-banner').style.display = 'none';
+        showToast('Notifications enabled! 🔔');
+        scheduleDailyReminder();
+      }
+    }
+  }
+  
+  function sendNotification(title, body) {
+    if (notificationPermission && Notification.permission === 'granted') {
+      new Notification(title, { body: body });
+    }
+  }
+  
+  function scheduleDailyReminder() {
+    showToast(`Daily reminder set! You'll get health tips daily.`);
+    setTimeout(() => sendNotification('BodyFuel AI', 'Ready to scan your health today? 🌟'), 1000);
+  }
+  
+  if ('Notification' in window && Notification.permission === 'granted') notificationPermission = true;
+  else if (Notification.permission !== 'denied') document.getElementById('notif-banner').style.display = 'flex';
+  
+  // ========== IMAGE UPLOAD ==========
+  async function uploadImage(file, folder) {
+    const fileName = `${Date.now()}_${file.name}`;
+    const filePath = `${deviceId}/${folder}/${fileName}`;
+    const { error } = await supabase.storage.from('scan-images').upload(filePath, file);
+    if (error) return null;
+    const { data } = supabase.storage.from('scan-images').getPublicUrl(filePath);
+    return data.publicUrl;
+  }
+  
+  // ========== OPENROUTER AI CALL ==========
+  async function callOpenRouter(imageBase64, prompt) {
+    if (!OPENROUTER_KEY) {
+      throw new Error('OpenRouter API key not configured. Please check config.js file.');
+    }
+    
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.0-flash-exp:free',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a health and nutrition expert. Return ONLY valid JSON, no other text.'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: imageBase64 }
+            ]
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 500
+      })
+    });
+    
+    if (!response.ok) throw new Error('API call failed');
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    throw new Error('Could not parse AI response');
+  }
+  
+  // ========== BODY ANALYSIS WITH AI ==========
+  async function analyzeBodyWithAI(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onloadend = async function() {
+      const imageBase64 = reader.result;
+      
+      const analyzingDiv = document.createElement('div');
+      analyzingDiv.className = 'analyzing-bar';
+      analyzingDiv.innerHTML = '<div class="spinner"></div> 🤖 AI analyzing your posture with Gemini AI...';
+      document.getElementById('result-body').appendChild(analyzingDiv);
+      
+      try {
+        const prompt = `Analyze this body posture photo and return JSON:
+        {
+          "posture_score": number (0-100),
+          "issues": ["issue1", "issue2"],
+          "exercises": [{"name": "exercise", "reps": "10 reps", "sets": "3 sets", "target": "body part"}],
+          "advice": "short health tip in Hindi"
+        }`;
+        
+        const result = await callOpenRouter(imageBase64, prompt);
+        
+        const imageUrl = await uploadImage(file, 'body');
+        
+        currentBodyData = {
+          posture_score: result.posture_score,
+          issues: result.issues,
+          exercises: result.exercises,
+          advice: result.advice,
+          image_url: imageUrl
+        };
+        
+        analyzingDiv.remove();
+        
+        const resultHtml = `
+          <div class="score-card"><div class="score-circle"><div class="score-num">${result.posture_score}</div><div>/100</div></div><div><div class="card-title">✅ AI Analysis Complete</div><div>Score: ${result.posture_score}/100</div></div></div>
+          <div class="issues-card"><div class="issues-title">⚠️ Issues Detected</div>${result.issues.map(i => `<div>● ${i}</div>`).join('')}</div>
+          <div class="exercises-card"><div class="exercises-title">🏋️ Recommended Exercises</div>${result.exercises.map((ex, i) => `<div class="exercise-item"><div class="ex-num">${i+1}</div><div><div class="card-title" style="font-size:13px;">${ex.name}</div><div>${ex.reps} • ${ex.sets}</div></div><div style="margin-left:auto;">${ex.target}</div></div>`).join('')}</div>
+          <div class="balance-note">💡 ${result.advice}</div>
+          <div class="action-buttons"><button class="action-btn btn-save" onclick="saveBodyScan()">💾 Save to History</button><button class="action-btn btn-new" onclick="resetBodyScan()">📸 New Scan</button><button class="action-btn btn-pdf" onclick="generatePDF('body')">📄 Save PDF</button></div>
+        `;
+        document.getElementById('body-result').innerHTML = resultHtml;
+        document.getElementById('body-result').style.display = 'block';
+        showToast('AI analysis complete!');
+        sendNotification('Body Analysis', `Your posture score: ${result.posture_score}/100`);
+        
+      } catch (error) {
+        analyzingDiv.remove();
+        showToast('AI Error: ' + error.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  async function saveBodyScan() {
+    if (!currentBodyData) return;
+    const { error } = await supabase.from('body_scans').insert({
+      user_id: deviceId,
+      posture_score: currentBodyData.posture_score,
+      issues: currentBodyData.issues,
+      exercises: currentBodyData.exercises,
+      image_url: currentBodyData.image_url,
+      created_at: new Date()
+    });
+    if (!error) { showToast('Saved! ✅'); resetBodyScan(); loadHomeData(); loadHistoryData(); }
+    else showToast('Error: ' + error.message);
+  }
+  
+  function resetBodyScan() {
+    currentBodyData = null;
+    document.getElementById('body-result').style.display = 'none';
+    document.getElementById('body-input').value = '';
+  }
+  
+  // ========== FOOD ANALYSIS WITH AI ==========
+  async function analyzeFoodWithAI(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    
+    reader.onloadend = async function() {
+      const imageBase64 = reader.result;
+      
+      const analyzingDiv = document.createElement('div');
+      analyzingDiv.className = 'analyzing-bar';
+      analyzingDiv.innerHTML = '<div class="spinner"></div> 🤖 AI analyzing your food with Gemini AI...';
+      document.getElementById('result-food').appendChild(analyzingDiv);
+      
+      try {
+        const prompt = `Analyze this food image and return JSON:
+        {
+          "food_name": "name of dish in Hindi/English",
+          "calories": number,
+          "protein_g": number,
+          "carbs_g": number,
+          "fat_g": number,
+          "fiber_g": number,
+          "health_tip": "short advice in Hindi"
+        }`;
+        
+        const result = await callOpenRouter(imageBase64, prompt);
+        
+        const imageUrl = await uploadImage(file, 'food');
+        
+        currentFoodData = {
+          name: result.food_name,
+          calories: result.calories,
+          protein: result.protein_g,
+          carbs: result.carbs_g,
+          fat: result.fat_g,
+          fiber: result.fiber_g,
+          health_tip: result.health_tip,
+          image_url: imageUrl
+        };
+        
+        analyzingDiv.remove();
+        
+        const resultHtml = `
+          <div class="food-detected"><div style="font-size:32px;">🍽️</div><div><div class="card-title">${result.food_name}</div><div style="font-size:11px;">AI identified • Gemini AI analysis</div></div></div>
+          <div class="nutrition-grid"><div class="nutri-card span-2"><div>🔥</div><div><div class="kcal-big">${result.calories}</div><div>Calories</div></div></div>
+            <div class="nutri-card"><div>🥔</div><div class="kcal-big" style="font-size:20px;">${result.carbs_g}g</div><div>Carbs</div></div>
+            <div class="nutri-card"><div>🍗</div><div class="kcal-big" style="font-size:20px;">${result.protein_g}g</div><div>Protein</div></div>
+            <div class="nutri-card"><div>🧈</div><div class="kcal-big" style="font-size:20px;">${result.fat_g}g</div><div>Fat</div></div>
+            <div class="nutri-card"><div>🌾</div><div class="kcal-big" style="font-size:20px;">${result.fiber_g || 3}g</div><div>Fiber</div></div>
+          </div>
+          <div class="balance-note">💡 ${result.health_tip}</div>
+          <div class="action-buttons"><button class="action-btn btn-save" onclick="saveFoodScan()">💾 Save Meal</button><button class="action-btn btn-new" onclick="resetFoodScan()">🔄 New Scan</button><button class="action-btn btn-pdf" onclick="generatePDF('food')">📄 Save PDF</button></div>
+        `;
+        document.getElementById('food-result').innerHTML = resultHtml;
+        document.getElementById('food-result').style.display = 'block';
+        showToast('AI analysis complete!');
+        sendNotification('Food Analysis', `${result.food_name}: ${result.calories} calories`);
+        
+      } catch (error) {
+        analyzingDiv.remove();
+        showToast('AI Error: ' + error.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  
+  async function saveFoodScan() {
+    if (!currentFoodData) return;
+    const { error } = await supabase.from('food_scans').insert({
+      user_id: deviceId,
+      food_name: currentFoodData.name,
+      calories: currentFoodData.calories,
+      protein: currentFoodData.protein,
+      carbs: currentFoodData.carbs,
+      fat: currentFoodData.fat,
+      fiber: currentFoodData.fiber,
+      image_url: currentFoodData.image_url,
+      created_at: new Date()
+    });
+    if (!error) { showToast('Meal saved! ✅'); resetFoodScan(); loadHomeData(); loadHistoryData(); }
+    else showToast('Error: ' + error.message);
+  }
+  
+  function resetFoodScan() {
+    currentFoodData = null;
+    document.getElementById('food-result').style.display = 'none';
+    document.getElementById('food-input').value = '';
+  }
+  
+  // ========== LOAD DATA FROM SUPABASE ==========
+  async function loadHomeData() {
+    try {
+      const { data: body } = await supabase.from('body_scans').select('*').eq('user_id', deviceId).order('created_at', { ascending: false }).limit(2);
+      const { data: food } = await supabase.from('food_scans').select('*').eq('user_id', deviceId).order('created_at', { ascending: false }).limit(2);
+      
+      let all = [];
+      if (body) all.push(...body.map(s => ({ ...s, type: 'body' })));
+      if (food) all.push(...food.map(s => ({ ...s, type: 'food' })));
+      all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      all = all.slice(0, 3);
+      
+      const recentHtml = all.map(s => s.type === 'body' ? 
+        `<div class="activity-item"><div class="activity-icon icon-body">🧍</div><div class="activity-info"><div class="activity-title">Posture Check</div><div class="activity-time">${new Date(s.created_at).toLocaleDateString()}</div></div><div class="activity-badge badge-exercise">Score: ${s.posture_score}/100</div></div>` :
+        `<div class="activity-item"><div class="activity-icon icon-food">🍛</div><div class="activity-info"><div class="activity-title">${s.food_name}</div><div class="activity-time">${new Date(s.created_at).toLocaleDateString()}</div></div><div class="activity-badge badge-kcal">${s.calories} kcal</div></div>`
+      ).join('');
+      document.getElementById('recent-scans-list').innerHTML = recentHtml || '<div class="analyzing-bar">No scans yet</div>';
+      
+      const { data: allBody } = await supabase.from('body_scans').select('posture_score').eq('user_id', deviceId);
+      const { data: allFood } = await supabase.from('food_scans').select('calories').eq('user_id', deviceId);
+      const totalScans = (allBody?.length || 0) + (allFood?.length || 0);
+      const totalCalories = allFood?.reduce((s, f) => s + (f.calories || 0), 0) || 0;
+      const avgPosture = allBody?.reduce((s, b) => s + (b.posture_score || 0), 0) / (allBody?.length || 1) || 0;
+      document.getElementById('total-scans').innerText = totalScans;
+      document.getElementById('total-calories').innerText = totalCalories;
+      document.getElementById('avg-posture').innerText = Math.round(avgPosture);
+    } catch(e) { console.error(e); }
+  }
+  
+  async function loadHistoryData() {
+    const { data: body } = await supabase.from('body_scans').select('*').eq('user_id', deviceId).order('created_at', { ascending: false });
+    const { data: food } = await supabase.from('food_scans').select('*').eq('user_id', deviceId).order('created_at', { ascending: false });
+    
+    document.getElementById('body-hist').innerHTML = body?.length ? body.map(s => `
+      <div class="history-item"><div class="hi-icon icon-body">🧍</div><div class="hi-info"><div class="hi-title">Posture Score: ${s.posture_score}/100</div><div class="hi-meta">${new Date(s.created_at).toLocaleString()}</div></div><div class="hi-actions"><button class="hi-btn hi-pdf" onclick="generateSinglePDF('body', '${s.id}')">📄</button><button class="hi-btn hi-del" onclick="deleteScan('body_scans', '${s.id}')">🗑️</button></div></div>
+    `).join('') : '<div class="analyzing-bar">No body scans yet</div>';
+    
+    document.getElementById('food-hist').innerHTML = food?.length ? food.map(s => `
+      <div class="history-item"><div class="hi-icon icon-food">🍛</div><div class="hi-info"><div class="hi-title">${s.food_name}</div><div class="hi-meta">${s.calories} kcal • P:${s.protein}g C:${s.carbs}g F:${s.fat}g<br>${new Date(s.created_at).toLocaleString()}</div></div><div class="hi-actions"><button class="hi-btn hi-pdf" onclick="generateSinglePDF('food', '${s.id}')">📄</button><button class="hi-btn hi-del" onclick="deleteScan('food_scans', '${s.id}')">🗑️</button></div></div>
+    `).join('') : '<div class="analyzing-bar">No food scans yet</div>';
+    
+    if (body?.length) {
+      const last7 = body.slice(0, 7).reverse();
+      let postureHtml = '';
+      last7.forEach((s, i) => { const h = (s.posture_score / 100) * 60; postureHtml += `<div class="bar-wrap"><div class="bar-val">${s.posture_score}</div><div class="bar" style="height:${h}px"></div><div class="bar-label">${i+1}</div></div>`; });
+      document.getElementById('posture-graph').innerHTML = postureHtml;
+      const improvement = body.length > 1 ? (body[0].posture_score - body[body.length-1].posture_score) : 0;
+      document.getElementById('improvement-text').innerHTML = improvement > 0 ? `🎉 ${improvement} points improvement! Keep going!` : 'Keep scanning to see progress';
+    }
+    if (food?.length) {
+      const last7 = food.slice(0, 7);
+      let calHtml = '';
+      last7.forEach((s, i) => { const h = (s.calories / 3000) * 60; calHtml += `<div class="bar-wrap"><div class="bar-val">${s.calories}</div><div class="bar" style="height:${Math.min(h, 60)}px; background:linear-gradient(180deg, var(--orange), #E65100)"></div><div class="bar-label">${i+1}</div></div>`; });
+      document.getElementById('calories-graph').innerHTML = calHtml;
+    }
+  }
+  
+  async function deleteScan(table, id) {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (!error) { showToast('Deleted'); loadHomeData(); loadHistoryData(); }
+    else showToast('Error deleting');
+  }
+  
+  async function clearAllData() {
+    if (confirm('Delete all your health data? This cannot be undone.')) {
+      await supabase.from('body_scans').delete().eq('user_id', deviceId);
+      await supabase.from('food_scans').delete().eq('user_id', deviceId);
+      showToast('All data cleared');
+      loadHomeData();
+      loadHistoryData();
+    }
+  }
+  
+  // ========== PDF GENERATION ==========
+  async function generatePDF(type) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFillColor(46, 125, 50);
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.text('BodyFuel AI Report', 20, 25);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 50);
+    let y = 70;
+    if (type === 'body' && currentBodyData) {
+      doc.setFontSize(14);
+      doc.setTextColor(46, 125, 50);
+      doc.text('Body Posture Analysis', 20, y);
+      y += 10;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Posture Score: ${currentBodyData.posture_score}/100`, 20, y);
+      y += 8;
+      doc.text('Issues:', 20, y);
+      y += 6;
+      currentBodyData.issues.forEach(i => { doc.text(`• ${i}`, 25, y); y += 6; });
+    } else if (type === 'food' && currentFoodData) {
+      doc.setFontSize(14);
+      doc.setTextColor(255, 152, 0);
+      doc.text('Food Nutrition Analysis', 20, y);
+      y += 10;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Food: ${currentFoodData.name}`, 20, y);
+      y += 8;
+      doc.text(`Calories: ${currentFoodData.calories} kcal`, 20, y);
+      y += 8;
+      doc.text(`Protein: ${currentFoodData.protein}g | Carbs: ${currentFoodData.carbs}g | Fat: ${currentFoodData.fat}g`, 20, y);
+    }
+    doc.save(`BodyFuel_${type}_report.pdf`);
+    showToast('PDF saved!');
+  }
+  
+  async function generateSinglePDF(type, id) {
+    if (type === 'body') {
+      const { data } = await supabase.from('body_scans').select('*').eq('id', id).single();
+      if (data) { currentBodyData = { posture_score: data.posture_score, issues: data.issues, exercises: data.exercises }; generatePDF('body'); }
+    } else {
+      const { data } = await supabase.from('food_scans').select('*').eq('id', id).single();
+      if (data) { currentFoodData = { name: data.food_name, calories: data.calories, protein: data.protein, carbs: data.carbs, fat: data.fat }; generatePDF('food'); }
+    }
+  }
+  
+  async function generateFullReport() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFillColor(46, 125, 50);
+    doc.rect(0, 0, 210, 280, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(28);
+    doc.text('BodyFuel AI', 105, 120, { align: 'center' });
+    doc.setFontSize(16);
+    doc.text('Complete Health Report', 105, 145, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(new Date().toLocaleDateString(), 105, 165, { align: 'center' });
+    doc.addPage();
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16);
+    doc.text('Summary', 20, 20);
+    const { data: body } = await supabase.from('body_scans').select('*').eq('user_id', deviceId);
+    const { data: food } = await supabase.from('food_scans').select('*').eq('user_id', deviceId);
+    doc.setFontSize(12);
+    doc.text(`Total Body Scans: ${body?.length || 0}`, 20, 40);
+    doc.text(`Total Food Scans: ${food?.length || 0}`, 20, 48);
+    const avgPosture = body?.reduce((s, b) => s + b.posture_score, 0) / (body?.length || 1);
+    doc.text(`Average Posture: ${Math.round(avgPosture)}/100`, 20, 56);
+    const totalCal = food?.reduce((s, f) => s + f.calories, 0) || 0;
+    doc.text(`Total Calories: ${totalCal} kcal`, 20, 64);
+    doc.save(`BodyFuel_Full_Report.pdf`);
+    showToast('Full report saved!');
+  }
+  
+  loadHomeData();
+</script>
+</body>
+</html>
